@@ -81,10 +81,18 @@ void mParseConnectedInputDevices()
   printf("Number of raw input devices: %d\n", numDevices);
   for (UINT deviceIndex = 0; deviceIndex < numDevices; deviceIndex++)
   {
-    printf(BG_GREEN);
-    printf("===== Device #%d =====\n", deviceIndex);
-    printf(RESET_COLOR);
     RAWINPUTDEVICELIST rawInputDevice = rawInputDeviceList[deviceIndex];
+    UINT deviceNameLength;
+    TCHAR* deviceName = NULL;
+    unsigned int cbDeviceName;
+
+    mGetRawInputDeviceName(rawInputDevice.hDevice, &deviceName, &deviceNameLength, &cbDeviceName);
+
+    printf(BG_GREEN);
+    printf("===== Device #%d =====", deviceIndex);
+    wprintf(deviceName);
+    printf(RESET_COLOR);
+    printf("\n");
     if (rawInputDevice.dwType != RIM_TYPEHID)
     {
       // skip keyboards and mouses
@@ -115,16 +123,6 @@ void mParseConnectedInputDevices()
 
     if (!isButtonCapsEmpty)
     {
-      UINT deviceNameLength;
-      TCHAR* deviceName = NULL;
-      unsigned int cbDeviceName;
-
-      mGetRawInputDeviceName(rawInputDevice.hDevice, &deviceName, &deviceNameLength, &cbDeviceName);
-
-      printf("Device name: ");
-      wprintf(deviceName);
-      printf("\n");
-
       printf(FG_GREEN);
       printf("Finding device in global list...\n");
       printf(RESET_COLOR);
@@ -171,6 +169,7 @@ void mParseConnectedInputDevices()
         for (USHORT valueCapIndex = 0; valueCapIndex < numValueCaps; valueCapIndex++)
         {
           HIDP_VALUE_CAPS cap = valueCaps[valueCapIndex];
+          printf("[ValueCaps#%d] UsagePage:0x%02x, LinkCollection:%d, LinkUsage:0x%02x, LinkUsagePage:0x%02x, isRange:%d, reportId:%d\n", valueCapIndex + 1, cap.UsagePage, cap.LinkCollection, cap.LinkUsage, cap.LinkUsagePage, cap.IsRange, cap.ReportID);
 
           if (cap.IsRange || !cap.IsAbsolute)
           {
@@ -185,34 +184,29 @@ void mParseConnectedInputDevices()
             exit(-1);
           }
 
-          printf(FG_GREEN);
-          printf("[ValueCaps] foundLinkCollectionIndex: %d\n", foundLinkColIdx);
-          printf(RESET_COLOR);
-
           if (cap.UsagePage == HID_USAGE_PAGE_GENERIC)
           {
-            printf("=====================================================\n");
-            printf("LinkCollection: %d\n", cap.LinkCollection);
-
+            printf("  USAGE_PAGE_GENERIC, NotRange.Usage: 0x%02x, LinkCollection: %d, foundlinkcolis: %d\n", cap.NotRange.Usage, cap.LinkCollection, foundLinkColIdx);
             if (cap.NotRange.Usage == HID_USAGE_GENERIC_X)
             {
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].HasX               = 1;
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].PhysicalRect.left  = cap.PhysicalMin;
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].PhysicalRect.right = cap.PhysicalMax;
-              printf("  Left: %d\n", cap.PhysicalMin);
-              printf("  Right: %d\n", cap.PhysicalMax);
+              printf("    X_PhysicalMin: %d\n", cap.PhysicalMin);
+              printf("    X_PhysicalMax: %d\n", cap.PhysicalMax);
             }
             else if (cap.NotRange.Usage == HID_USAGE_GENERIC_Y)
             {
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].HasY                = 1;
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].PhysicalRect.top    = cap.PhysicalMin;
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].PhysicalRect.bottom = cap.PhysicalMax;
-              printf("  Top: %d\n", cap.PhysicalMin);
-              printf("  Bottom: %d\n", cap.PhysicalMax);
+              printf("    Y_PhysicalMin: %d\n", cap.PhysicalMin);
+              printf("    Y_PhysicalMax: %d\n", cap.PhysicalMax);
             }
           }
           else if (cap.UsagePage == HID_USAGE_PAGE_DIGITIZER)
           {
+            printf("  USAGE_PAGE_DIGITIZER, NotRange.Usage: 0x%02x, LinkCollection: %d, foundlinkcolis: %d\n", cap.NotRange.Usage, cap.LinkCollection, foundLinkColIdx);
             if (cap.NotRange.Usage == HID_USAGE_DIGITIZER_CONTACT_ID)
             {
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].HasContactID = 1;
@@ -245,27 +239,31 @@ void mParseConnectedInputDevices()
         {
           HIDP_BUTTON_CAPS buttonCap = buttonCaps[buttonCapIndex];
 
+          printf("[ButtonCaps#%d] UsagePage:0x%02x, LinkCollection:%d, LinkUsage:0x%02x, LinkUsagePage:0x%02x, isRange:%d, reportId:%d\n", buttonCapIndex + 1, buttonCap.UsagePage, buttonCap.LinkCollection, buttonCap.LinkUsage, buttonCap.LinkUsagePage, buttonCap.IsRange, buttonCap.ReportID);
+
           if (buttonCap.IsRange)
           {
             continue;
           }
 
-          printf(FG_BLUE);
-          printf("[ButtonCaps] Index: %d, UsagePage: %d, Usage: %d, DIGITIZER: %d, IsRange: %d\n", buttonCapIndex, buttonCap.UsagePage, buttonCap.NotRange.Usage, buttonCap.UsagePage, buttonCap.IsRange);
-          printf(RESET_COLOR);
+          unsigned int foundLinkColIdx;
+          int returnCode = FindLinkCollectionInList(&(g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList), buttonCap.LinkCollection, &foundLinkColIdx);
+          if (returnCode != 0)
+          {
+            printf("FindLinkCollectionInList failed at %s:%d\n", __FILE__, __LINE__);
+            exit(-1);
+          }
 
           if (buttonCap.UsagePage == HID_USAGE_PAGE_DIGITIZER)
           {
+            printf("  USAGE_PAGE_DIGITIZER  NotRange.Usage: 0x%02x, LinkCollection: %d\n", buttonCap.NotRange.Usage, buttonCap.LinkCollection);
             if (buttonCap.NotRange.Usage == HID_USAGE_DIGITIZER_TIP_SWITCH)
             {
-              unsigned int foundLinkColIdx;
-              int returnCode = FindLinkCollectionInList(&(g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList), buttonCap.LinkCollection, &foundLinkColIdx);
-
-              printf(FG_GREEN);
-              printf("[ButtonCaps] foundLinkCollectionIndex: %d\n", foundLinkColIdx);
-              printf(RESET_COLOR);
-
               g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].HasTipSwitch = 1;
+            }
+            else if (buttonCap.NotRange.Usage == 0x47)  // Confidence
+            {
+              g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[foundLinkColIdx].HasConfidence = 1;
             }
           }
         }
@@ -312,6 +310,62 @@ void mRegisterRawInput(HWND hwnd)
 void mHandleCreateMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
   mRegisterRawInput(hwnd);
+}
+
+BOOL checkPressureCap(PHIDP_PREPARSED_DATA preparsedData, const BYTE* report, ULONG reportLen)
+{
+  HIDP_CAPS caps;
+  NTSTATUS status;
+  USHORT valueCapsLen;
+  HIDP_VALUE_CAPS* valueCaps = NULL;
+  USHORT i;
+  HIDP_VALUE_CAPS* pressureCaps = NULL;
+
+  if (!preparsedData || !report)
+    return FALSE;
+
+  status = HidP_GetCaps(preparsedData, &caps);
+  if (status != HIDP_STATUS_SUCCESS)
+    return FALSE;
+
+  valueCapsLen = caps.NumberInputValueCaps;
+  if (valueCapsLen == 0)
+    return FALSE;
+
+  valueCaps = (HIDP_VALUE_CAPS*)HeapAlloc(GetProcessHeap(), 0, valueCapsLen * sizeof(HIDP_VALUE_CAPS));
+  if (!valueCaps)
+    return FALSE;
+
+  status = HidP_GetValueCaps(HidP_Input, valueCaps, &valueCapsLen, preparsedData);
+  if (status != HIDP_STATUS_SUCCESS)
+  {
+    HeapFree(GetProcessHeap(), 0, valueCaps);
+    return FALSE;
+  }
+
+  /* Find the Digitizer/Pressure value cap */
+  for (i = 0; i < valueCapsLen; ++i)
+  {
+    HIDP_VALUE_CAPS* vc = &valueCaps[i];
+
+    if (vc->UsagePage != 0x0D) /* Digitizers */
+      continue;
+
+    /* Pressure is Usage 0x30. It can appear as a single usage or a range. */
+    if ((vc->Range.UsageMin <= 0x30 && 0x30 <= vc->Range.UsageMax) || (vc->NotRange.Usage == 0x30))
+    {
+      pressureCaps = vc;
+      break;
+    }
+  }
+
+  if (!pressureCaps)
+  {
+    HeapFree(GetProcessHeap(), 0, valueCaps);
+    return FALSE; /* Device has no Pressure usage */
+  }
+
+  return TRUE;
 }
 
 void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -396,6 +450,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             ULONG usageValue;
 
             PHIDP_PREPARSED_DATA preparsedHIDData = g_app_state->device_info_list.Entries[foundHidIdx].PreparedData;
+            printf("has pressure cap: %d\n", checkPressureCap(preparsedHIDData, rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid));
 
             if (g_app_state->device_info_list.Entries[foundHidIdx].ContactCountLinkCollection == (USHORT)-1)
             {
@@ -405,6 +460,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             }
             else
             {
+              // --- HID_USAGE_DIGITIZER_CONTACT_COUNT ---
               hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, g_app_state->device_info_list.Entries[foundHidIdx].ContactCountLinkCollection, HID_USAGE_DIGITIZER_CONTACT_COUNT, &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
 
               if (hidpReturnCode != HIDP_STATUS_SUCCESS)
@@ -438,8 +494,10 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 {
                   HID_TOUCH_LINK_COL_INFO collectionInfo = g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[linkColIdx];
 
+                  printf("colid:%d x:%d y:%d tip:%d pres:%d confi:%d\n", collectionInfo.LinkColID, collectionInfo.HasX, collectionInfo.HasY, collectionInfo.HasTipSwitch, collectionInfo.HasPressure, collectionInfo.HasConfidence);
                   if (collectionInfo.HasX && collectionInfo.HasY && collectionInfo.HasContactID && collectionInfo.HasTipSwitch)
                   {
+                    // --- X ---
                     hidpReturnCode = HidP_GetUsageValue(HidP_Input, 0x01, collectionInfo.LinkColID, 0x30, &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
 
                     if (hidpReturnCode != HIDP_STATUS_SUCCESS)
@@ -453,6 +511,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     ULONG xPos = usageValue;
 
+                    // --- Y ---
                     hidpReturnCode = HidP_GetUsageValue(HidP_Input, 0x01, collectionInfo.LinkColID, 0x31, &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
                     if (hidpReturnCode != HIDP_STATUS_SUCCESS)
                     {
@@ -465,6 +524,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     ULONG yPos = usageValue;
 
+                    // --- HID_USAGE_DIGITIZER_CONTACT_ID ---
                     hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, collectionInfo.LinkColID, HID_USAGE_DIGITIZER_CONTACT_ID, &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
                     if (hidpReturnCode != HIDP_STATUS_SUCCESS)
                     {
@@ -477,9 +537,50 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     ULONG touchId = usageValue;
 
+                    // --- Pressue ---
+                    hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, collectionInfo.LinkColID, ((USAGE)0x30), &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
+                    if (hidpReturnCode != HIDP_STATUS_SUCCESS)
+                    {
+                      printf(FG_RED);
+                      printf("Failed to read pressue!\n");
+                      printf(RESET_COLOR);
+                    }
+                    else
+                    {
+                      printf("pressure: %d\n", usageValue);
+                    }
+
+                    // --- Tip ---
+                    hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, collectionInfo.LinkColID, ((USAGE)0x42), &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
+                    if (hidpReturnCode != HIDP_STATUS_SUCCESS)
+                    {
+                      printf(FG_RED);
+                      printf("Failed to read tip!\n");
+                      printf(RESET_COLOR);
+                    }
+                    else
+                    {
+                      printf("tip: %d\n", usageValue);
+                    }
+
+                    // --- Confidence ---
+                    hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, collectionInfo.LinkColID, ((USAGE)0x47), &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
+                    if (hidpReturnCode != HIDP_STATUS_SUCCESS)
+                    {
+                      printf(FG_RED);
+                      printf("Failed to read confidence!\n");
+                      printf(RESET_COLOR);
+                    }
+                    else
+                    {
+                      printf("confidence: %d\n", usageValue);
+                    }
+
+                    // --- Button ---
                     const ULONG maxNumButtons = HidP_MaxUsageListLength(HidP_Input, HID_USAGE_PAGE_DIGITIZER, preparsedHIDData);
 
                     ULONG _maxNumButtons = maxNumButtons;
+                    printf("max button: %d\n", maxNumButtons);
 
                     USAGE* buttonUsageArray = (USAGE*)mMalloc(sizeof(USAGE) * maxNumButtons, __FILE__, __LINE__);
 
@@ -498,6 +599,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     for (ULONG usageIdx = 0; usageIdx < maxNumButtons; usageIdx++)
                     {
+                      printf("   button#%d usage:0x%02x\n", usageIdx, buttonUsageArray[usageIdx]);
                       if (buttonUsageArray[usageIdx] == HID_USAGE_DIGITIZER_TIP_SWITCH)
                       {
                         isContactOnSurface = 1;
@@ -816,9 +918,6 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
 
       if ((inputDevice.LinkColInfoList.Entries == NULL) || (inputDevice.LinkColInfoList.Size == 0))
       {
-        printf(FG_BRIGHT_YELLOW);
-        printf("Skipping input device #%d at %s:%d!\n", deviceIdx, __FILE__, __LINE__);
-        printf(RESET_COLOR);
         continue;
       }
       else
@@ -840,6 +939,9 @@ int CALLBACK wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance
               nHeight = linkCollectionInfo.PhysicalRect.bottom;
             }
 
+            printf("Selecting input device #%d", deviceIdx);
+            wprintf(inputDevice.Name);
+            printf("\n");
             break;
           }
         }
