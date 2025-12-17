@@ -368,6 +368,44 @@ BOOL checkPressureCap(PHIDP_PREPARSED_DATA preparsedData, const BYTE* report, UL
   return TRUE;
 }
 
+void printCaps(PHIDP_PREPARSED_DATA preparsedData, const BYTE* report, ULONG reportLen)
+{
+  HIDP_CAPS caps;
+  NTSTATUS status;
+  USHORT valueCapsLen;
+  HIDP_VALUE_CAPS* valueCaps = NULL;
+  USHORT i;
+
+  if (!preparsedData || !report)
+    return;
+
+  status = HidP_GetCaps(preparsedData, &caps);
+  if (status != HIDP_STATUS_SUCCESS)
+    return;
+
+  valueCapsLen = caps.NumberInputValueCaps;
+  if (valueCapsLen == 0)
+    return;
+
+  valueCaps = (HIDP_VALUE_CAPS*)HeapAlloc(GetProcessHeap(), 0, valueCapsLen * sizeof(HIDP_VALUE_CAPS));
+  if (!valueCaps)
+    return;
+
+  status = HidP_GetValueCaps(HidP_Input, valueCaps, &valueCapsLen, preparsedData);
+  if (status != HIDP_STATUS_SUCCESS)
+  {
+    HeapFree(GetProcessHeap(), 0, valueCaps);
+    return;
+  }
+
+  /* Find the Digitizer/Pressure value cap */
+  for (i = 0; i < valueCapsLen; ++i)
+  {
+    HIDP_VALUE_CAPS* vc = &valueCaps[i];
+    // printf("UsagePage:0x%02x, NotRange.Usage:0x%02x\n", vc->UsagePage, vc->NotRange.Usage);
+  }
+}
+
 void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
   clock_t ts = clock();
@@ -450,8 +488,8 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             ULONG usageValue;
 
             PHIDP_PREPARSED_DATA preparsedHIDData = g_app_state->device_info_list.Entries[foundHidIdx].PreparedData;
-            printf("has pressure cap: %d\n", checkPressureCap(preparsedHIDData, rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid));
-
+            // printf("has pressure cap: %d\n", checkPressureCap(preparsedHIDData, rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid));
+            printCaps(preparsedHIDData, rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
             if (g_app_state->device_info_list.Entries[foundHidIdx].ContactCountLinkCollection == (USHORT)-1)
             {
               printf(FG_RED);
@@ -470,6 +508,11 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 printf(RESET_COLOR);
                 print_HidP_errors(hidpReturnCode, __FILE__, __LINE__);
                 exit(-1);
+              }
+              else
+              {
+                printf("=============\n");
+                printf("numContacts: %d\n", usageValue);
               }
 
               ULONG numContacts = usageValue;
@@ -494,7 +537,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 {
                   HID_TOUCH_LINK_COL_INFO collectionInfo = g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[linkColIdx];
 
-                  printf("LinkColId:%d | Caps(x:%d y:%d tip:%d pres:%d confi:%d)\n", collectionInfo.LinkColID, collectionInfo.HasX, collectionInfo.HasY, collectionInfo.HasTipSwitch, collectionInfo.HasPressure, collectionInfo.HasConfidence);
+                  // printf("LinkColId:%d | Caps(x:%d y:%d tip:%d pres:%d confi:%d)\n", collectionInfo.LinkColID, collectionInfo.HasX, collectionInfo.HasY, collectionInfo.HasTipSwitch, collectionInfo.HasPressure, collectionInfo.HasConfidence);
                   if (collectionInfo.HasX && collectionInfo.HasY && collectionInfo.HasContactID && collectionInfo.HasTipSwitch)
                   {
                     // --- X ---
@@ -545,11 +588,21 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                       printf("Failed to read pressue!\n");
                       printf(RESET_COLOR);
                     }
-                    else
+
+                    ULONG pressure = usageValue;
+
+                    // --- Width ---
+                    hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, collectionInfo.LinkColID, ((USAGE)0x48), &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
+                    if (hidpReturnCode != HIDP_STATUS_SUCCESS)
                     {
-                      printf("pressure: %d\n", usageValue);
+                      printf(FG_RED);
+                      printf("Failed to read contact width!\n");
+                      printf(RESET_COLOR);
                     }
 
+                    ULONG width = usageValue;
+
+                    /*
                     // --- Tip ---
                     hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, collectionInfo.LinkColID, ((USAGE)0x42), &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
                     if (hidpReturnCode != HIDP_STATUS_SUCCESS)
@@ -575,12 +628,13 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                     {
                       printf("confidence: %d\n", usageValue);
                     }
+                    */
 
                     // --- Button ---
                     const ULONG maxNumButtons = HidP_MaxUsageListLength(HidP_Input, HID_USAGE_PAGE_DIGITIZER, preparsedHIDData);
 
                     ULONG _maxNumButtons = maxNumButtons;
-                    printf("max button: %d\n", maxNumButtons);
+                    // printf("max button: %d\n", maxNumButtons);
 
                     USAGE* buttonUsageArray = (USAGE*)mMalloc(sizeof(USAGE) * maxNumButtons, __FILE__, __LINE__);
 
@@ -599,7 +653,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 
                     for (ULONG usageIdx = 0; usageIdx < maxNumButtons; usageIdx++)
                     {
-                      printf("   button#%d usage:0x%02x\n", usageIdx, buttonUsageArray[usageIdx]);
+                      // printf("   button#%d usage:0x%02x\n", usageIdx, buttonUsageArray[usageIdx]);
                       if (buttonUsageArray[usageIdx] == HID_USAGE_DIGITIZER_TIP_SWITCH)
                       {
                         isContactOnSurface = 1;
@@ -610,11 +664,14 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                     free(buttonUsageArray);
 
                     TOUCH_DATA curTouch;
-                    curTouch.TouchID   = touchId;
-                    curTouch.X         = xPos;
-                    curTouch.Y         = yPos;
-                    curTouch.OnSurface = isContactOnSurface;
+                    curTouch.TouchID      = touchId;
+                    curTouch.X            = xPos;
+                    curTouch.Y            = yPos;
+                    curTouch.Pressure     = pressure;
+                    curTouch.ContactWidth = width;
+                    curTouch.OnSurface    = isContactOnSurface;
 
+                    printf("contact id:%d, (%d,%d), pressure:%d, width:%d, onSurface:%d\n", curTouch.TouchID, curTouch.X, curTouch.Y, curTouch.Pressure, curTouch.ContactWidth, curTouch.OnSurface);
                     unsigned int touchType;
                     int cStyleFunctionReturnCode = mInterpretRawTouchInput(&g_app_state->previous_touches, curTouch, &touchType);
                     if (cStyleFunctionReturnCode != 0)
@@ -718,6 +775,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 #endif
                   }
                 }
+                printf("=============\n");
               }
             }
           }

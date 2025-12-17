@@ -12,6 +12,8 @@ struct TOUCH_DATA
   ULONG TouchID;
   ULONG X;
   ULONG Y;
+  ULONG Pressure;
+  ULONG ContactWidth;
   int OnSurface;
 };
 
