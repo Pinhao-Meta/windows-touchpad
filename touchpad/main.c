@@ -494,7 +494,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 {
                   HID_TOUCH_LINK_COL_INFO collectionInfo = g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[linkColIdx];
 
-                  printf("colid:%d x:%d y:%d tip:%d pres:%d confi:%d\n", collectionInfo.LinkColID, collectionInfo.HasX, collectionInfo.HasY, collectionInfo.HasTipSwitch, collectionInfo.HasPressure, collectionInfo.HasConfidence);
+                  printf("LinkColId:%d | Caps(x:%d y:%d tip:%d pres:%d confi:%d)\n", collectionInfo.LinkColID, collectionInfo.HasX, collectionInfo.HasY, collectionInfo.HasTipSwitch, collectionInfo.HasPressure, collectionInfo.HasConfidence);
                   if (collectionInfo.HasX && collectionInfo.HasY && collectionInfo.HasContactID && collectionInfo.HasTipSwitch)
                   {
                     // --- X ---
