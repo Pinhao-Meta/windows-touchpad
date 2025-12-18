@@ -509,11 +509,6 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                 print_HidP_errors(hidpReturnCode, __FILE__, __LINE__);
                 exit(-1);
               }
-              else
-              {
-                printf("=============\n");
-                printf("numContacts: %d\n", usageValue);
-              }
 
               ULONG numContacts = usageValue;
 
@@ -533,6 +528,7 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
               }
               else
               {
+                printf("=============\n");
                 for (unsigned int linkColIdx = 0; linkColIdx < numContacts; linkColIdx++)
                 {
                   HID_TOUCH_LINK_COL_INFO collectionInfo = g_app_state->device_info_list.Entries[foundHidIdx].LinkColInfoList.Entries[linkColIdx];
@@ -682,6 +678,8 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                       exit(-1);
                     }
 
+                    // --------- SKIP drawing
+                    continue;
                     Point2D touchPos = (Point2D){.X = curTouch.X, .Y = curTouch.Y};
 
                     if (g_app_state->tracking_touch_id == (ULONG)-1)
