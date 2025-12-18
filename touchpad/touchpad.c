@@ -70,6 +70,18 @@ int mGetRawInputDeviceName(_In_ HANDLE hDevice, _Out_ TCHAR** deviceName, _Out_ 
 
       (*deviceName)[(*nameSize)] = 0;
 
+		// Find Apple Magic Trackpad 2 USBC
+		TCHAR *p1 = _tcsstr(deviceName, TEXT("VID_05AC"));
+		if (!p1)
+		{
+			return retval = -1;
+		}
+		p1 = _tcsstr(deviceName, TEXT("PID_0324"));
+		if (!p1)
+		{
+			return retval = -1;
+		}
+
       winReturnCode = GetRawInputDeviceInfo(hDevice, RIDI_DEVICENAME, (*deviceName), nameSize);
       if (winReturnCode == (UINT)-1)
       {

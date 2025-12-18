@@ -169,7 +169,7 @@ void mParseConnectedInputDevices()
         for (USHORT valueCapIndex = 0; valueCapIndex < numValueCaps; valueCapIndex++)
         {
           HIDP_VALUE_CAPS cap = valueCaps[valueCapIndex];
-          printf("[ValueCaps#%d] UsagePage:0x%02x, LinkCollection:%d, LinkUsage:0x%02x, LinkUsagePage:0x%02x, isRange:%d, reportId:%d\n", valueCapIndex + 1, cap.UsagePage, cap.LinkCollection, cap.LinkUsage, cap.LinkUsagePage, cap.IsRange, cap.ReportID);
+          printf("[ValueCaps#%d] UsagePage:0x%02x, LinkCollection:%d, LinkUsage:0x%02x, LinkUsagePage:0x%02x, isRange:%d, isAbsolute:%d, reportId:%d\n", valueCapIndex + 1, cap.UsagePage, cap.LinkCollection, cap.LinkUsage, cap.LinkUsagePage, cap.IsRange, cap.IsAbsolute, cap.ReportID);
 
           if (cap.IsRange || !cap.IsAbsolute)
           {
@@ -214,6 +214,10 @@ void mParseConnectedInputDevices()
             else if (cap.NotRange.Usage == HID_USAGE_DIGITIZER_CONTACT_COUNT)
             {
               g_app_state->device_info_list.Entries[foundHidIdx].ContactCountLinkCollection = cap.LinkCollection;
+            }
+            else if (cap.NotRange.Usage == ((USAGE)0x56))
+            {
+              g_app_state->device_info_list.Entries[foundHidIdx].ScanTimeLinkCollection = cap.LinkCollection;
             }
           }
         }
@@ -490,6 +494,31 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             PHIDP_PREPARSED_DATA preparsedHIDData = g_app_state->device_info_list.Entries[foundHidIdx].PreparedData;
             // printf("has pressure cap: %d\n", checkPressureCap(preparsedHIDData, rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid));
             printCaps(preparsedHIDData, rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
+
+            if (g_app_state->device_info_list.Entries[foundHidIdx].ScanTimeLinkCollection == (USHORT)-1)
+            {
+              printf(FG_RED);
+              printf("Cannot find scan time Link Collection!\n");
+              printf(RESET_COLOR);
+            }
+            else
+            {
+              // --- Scan Time, 16bit relative counter in units of 100us ---
+              hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, g_app_state->device_info_list.Entries[foundHidIdx].ScanTimeLinkCollection, 0x56, &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
+              if (hidpReturnCode != HIDP_STATUS_SUCCESS)
+              {
+                printf(FG_RED);
+                printf("Failed to read scan time!\n");
+                printf(RESET_COLOR);
+                print_HidP_errors(hidpReturnCode, __FILE__, __LINE__);
+                exit(-1);
+              }
+
+              USHORT scanTime = usageValue;
+                printf("scan time: %d\n", scanTime);
+            }
+
+
             if (g_app_state->device_info_list.Entries[foundHidIdx].ContactCountLinkCollection == (USHORT)-1)
             {
               printf(FG_RED);
@@ -500,7 +529,6 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
             {
               // --- HID_USAGE_DIGITIZER_CONTACT_COUNT ---
               hidpReturnCode = HidP_GetUsageValue(HidP_Input, HID_USAGE_PAGE_DIGITIZER, g_app_state->device_info_list.Entries[foundHidIdx].ContactCountLinkCollection, HID_USAGE_DIGITIZER_CONTACT_COUNT, &usageValue, preparsedHIDData, (PCHAR)rawInputData->data.hid.bRawData, rawInputData->data.hid.dwSizeHid);
-
               if (hidpReturnCode != HIDP_STATUS_SUCCESS)
               {
                 printf(FG_RED);
@@ -665,9 +693,10 @@ void mHandleInputMessage(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
                     curTouch.Y            = yPos;
                     curTouch.Pressure     = pressure;
                     curTouch.ContactWidth = width;
+                    curTouch.ScanTime     = 0; // scanTime
                     curTouch.OnSurface    = isContactOnSurface;
 
-                    printf("contact id:%d, (%d,%d), pressure:%d, width:%d, onSurface:%d\n", curTouch.TouchID, curTouch.X, curTouch.Y, curTouch.Pressure, curTouch.ContactWidth, curTouch.OnSurface);
+                    printf("scan time: %d, contact id:%d, (%d,%d), pressure:%d, width:%d, onSurface:%d\n", curTouch.ScanTime, curTouch.TouchID, curTouch.X, curTouch.Y, curTouch.Pressure, curTouch.ContactWidth, curTouch.OnSurface);
                     unsigned int touchType;
                     int cStyleFunctionReturnCode = mInterpretRawTouchInput(&g_app_state->previous_touches, curTouch, &touchType);
                     if (cStyleFunctionReturnCode != 0)

@@ -14,6 +14,7 @@ struct TOUCH_DATA
   ULONG Y;
   ULONG Pressure;
   ULONG ContactWidth;
+  USHORT ScanTime;
   int OnSurface;
 };
 

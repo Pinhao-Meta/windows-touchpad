@@ -47,6 +47,7 @@ struct HID_DEVICE_INFO
   PHIDP_PREPARSED_DATA PreparedData;
   UINT cbPreparsedData;
   USHORT ContactCountLinkCollection;
+  USHORT ScanTimeLinkCollection;
 };
 
 typedef struct HID_DEVICE_INFO HID_DEVICE_INFO;
